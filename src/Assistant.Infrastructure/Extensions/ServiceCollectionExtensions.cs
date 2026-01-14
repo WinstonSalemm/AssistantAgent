@@ -82,13 +82,11 @@ public static class ServiceCollectionExtensions
             {
                 // Public proxy — SSL обязателен
                 builder.SslMode = SslMode.Require;
-                builder.TrustServerCertificate = true;
             }
             else
             {
                 // Универсальный безопасный вариант
                 builder.SslMode = SslMode.Prefer;
-                builder.TrustServerCertificate = true;
             }
 
             builder.Timeout = 15;
@@ -99,7 +97,6 @@ public static class ServiceCollectionExtensions
 
             options.UseNpgsql(finalConnectionString, npgsql =>
             {
-                npgsql.UseVector();
                 npgsql.EnableRetryOnFailure(
                     maxRetryCount: 5,
                     maxRetryDelay: TimeSpan.FromSeconds(5),

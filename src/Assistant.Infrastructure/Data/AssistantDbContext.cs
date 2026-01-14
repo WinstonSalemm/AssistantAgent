@@ -1,6 +1,5 @@
 using Assistant.Core.Entities;
 using Microsoft.EntityFrameworkCore;
-using Pgvector.EntityFrameworkCore;
 
 namespace Assistant.Infrastructure.Data;
 
@@ -20,10 +19,6 @@ public class AssistantDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        // Enable pgvector extension
-        // Railway PostgreSQL может не иметь pgvector - будет установлено через SQL при миграции
-        modelBuilder.HasPostgresExtension("vector");
 
         // Message configuration
         modelBuilder.Entity<Message>(entity =>
@@ -54,18 +49,16 @@ public class AssistantDbContext : DbContext
             entity.HasIndex(e => e.IsCompleted);
         });
 
-        // Memory configuration with pgvector
+        // Memory configuration with real[] array (без pgvector)
         modelBuilder.Entity<Memory>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Content).IsRequired();
             
-            // Pgvector extension требует использования Vector type
+            // Используем real[] массив вместо vector типа
+            // OpenAI ada-002 dimension: 1536
             entity.Property(e => e.Embedding)
-                .HasColumnType("vector(1536)") // OpenAI ada-002 dimension
-                .HasConversion(
-                    v => v != null ? new Pgvector.Vector(v) : null,
-                    v => v != null ? v.ToArray() : null);
+                .HasColumnType("real[]"); // PostgreSQL массив чисел
             
             entity.Property(e => e.Metadata).HasColumnType("jsonb");
             entity.HasIndex(e => e.CreatedAt);

@@ -251,34 +251,8 @@ if (app.Environment.IsProduction())
             if (canConnect)
             {
                 Log.Information("Applying database migrations...");
-                try
-                {
-                    // Сначала пытаемся установить расширение pgvector если его нет
-                    try
-                    {
-                        await context.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS vector;");
-                        Log.Information("✅ pgvector extension ready");
-                    }
-                    catch (PostgresException pgEx) when (pgEx.SqlState == "0A000")
-                    {
-                        Log.Warning("⚠️ pgvector extension not available: {Message}", pgEx.MessageText);
-                        Log.Warning("⚠️ Vector search will not work, but app will continue");
-                        Log.Warning("💡 To enable pgvector: Railway PostgreSQL may need custom image or manual installation");
-                    }
-                    
-                    await context.Database.MigrateAsync();
-                    Log.Information("✅ Database migrations applied successfully");
-                }
-                catch (PostgresException pgEx) when (pgEx.SqlState == "0A000" && pgEx.MessageText.Contains("vector"))
-                {
-                    Log.Error("❌ pgvector extension is required but not available in Railway PostgreSQL");
-                    Log.Warning("⚠️ Migrations failed due to missing pgvector extension");
-                    Log.Warning("💡 Solution: Railway PostgreSQL may not have pgvector pre-installed.");
-                    Log.Warning("💡 Try: Connect via Railway CLI: railway connect postgres");
-                    Log.Warning("💡 Then run: CREATE EXTENSION vector;");
-                    Log.Warning("⚠️ App will continue, but vector search will not work");
-                    // Не падаем - приложение продолжит работу, но без векторного поиска
-                }
+                await context.Database.MigrateAsync();
+                Log.Information("✅ Database migrations applied successfully");
                 
                 // Проверяем что таблицы созданы
                 var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
