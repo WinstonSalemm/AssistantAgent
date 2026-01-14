@@ -22,6 +22,7 @@ public class AssistantDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         // Enable pgvector extension
+        // Railway PostgreSQL может не иметь pgvector - будет установлено через SQL при миграции
         modelBuilder.HasPostgresExtension("vector");
 
         // Message configuration
