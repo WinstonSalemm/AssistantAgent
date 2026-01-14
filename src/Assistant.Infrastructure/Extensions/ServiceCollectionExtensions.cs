@@ -116,6 +116,12 @@ public static class ServiceCollectionExtensions
             }
             catch (Exception ex)
             {
+                var finalPreview = finalConnectionString.Length > 50 
+                    ? finalConnectionString.Substring(0, 50) + "..." 
+                    : finalConnectionString;
+                var hasSsl = finalConnectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase) 
+                          || finalConnectionString.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase);
+                
                 throw new InvalidOperationException(
                     $"Failed to configure PostgreSQL connection. " +
                     $"Original: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}... " +
