@@ -225,19 +225,25 @@ if (app.Environment.IsProduction())
                 Log.Error("❌ Cannot connect to database! Check ConnectionStrings__DefaultConnection");
             }
         }
-        catch (Exception dbEx)
-        {
-            Log.Error(dbEx, "❌ Database connection failed: {Message}", dbEx.Message);
-            Log.Error("Inner exception: {InnerException}", dbEx.InnerException?.Message);
-            
-            if (dbEx is NpgsqlException npgsqlEx)
+            catch (Exception dbEx)
             {
-                Log.Error("Npgsql Error - Code: {SqlState}, Message: {Message}", 
-                    npgsqlEx.SqlState, npgsqlEx.Message);
+                Log.Error(dbEx, "❌ Database connection failed: {Message}", dbEx.Message);
+                Log.Error("Inner exception: {InnerException}", dbEx.InnerException?.Message);
+                
+                if (dbEx is NpgsqlException npgsqlEx)
+                {
+                    Log.Error("Npgsql Error - Code: {SqlState}, Message: {Message}", 
+                        npgsqlEx.SqlState, npgsqlEx.Message);
+                    Log.Error("Npgsql Error - IsTransient: {IsTransient}, Data: {Data}", 
+                        npgsqlEx.IsTransient, string.Join(", ", npgsqlEx.Data.Keys));
+                }
+                
+                // Логируем полный stack trace для диагностики
+                if (dbEx.StackTrace != null)
+                {
+                    Log.Error("Full stack trace: {StackTrace}", dbEx.StackTrace);
+                }
             }
-            
-            Log.Error("Stack trace: {StackTrace}", dbEx.StackTrace);
-        }
     }
     catch (Exception ex)
     {
