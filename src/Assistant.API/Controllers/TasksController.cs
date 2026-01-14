@@ -3,6 +3,7 @@ using Assistant.Core.Enums;
 using Assistant.Core.Interfaces;
 using Assistant.Shared.DTOs;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 
 namespace Assistant.API.Controllers;
 
@@ -12,11 +13,16 @@ public class TasksController : ControllerBase
 {
     private readonly ITaskRepository _taskRepository;
     private readonly ILogger<TasksController> _logger;
+    private readonly IConfiguration _configuration;
 
-    public TasksController(ITaskRepository taskRepository, ILogger<TasksController> logger)
+    public TasksController(
+        ITaskRepository taskRepository, 
+        ILogger<TasksController> logger,
+        IConfiguration configuration)
     {
         _taskRepository = taskRepository;
         _logger = logger;
+        _configuration = configuration;
     }
 
     [HttpGet]
@@ -106,8 +112,28 @@ public class TasksController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating task");
-            return StatusCode(500, "Internal server error");
+            _logger.LogError(ex, "Error creating task: {Message}", ex.Message);
+            _logger.LogError(ex, "Stack trace: {StackTrace}", ex.StackTrace);
+            
+            // В Development показываем детали ошибки для отладки
+            var isDevelopment = _configuration.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
+            
+            if (isDevelopment)
+            {
+                return StatusCode(500, new { 
+                    error = "Internal server error", 
+                    message = ex.Message,
+                    innerException = ex.InnerException?.Message,
+                    stackTrace = ex.StackTrace 
+                });
+            }
+            
+            // В Production возвращаем более информативную ошибку (без stack trace)
+            return StatusCode(500, new { 
+                error = "Internal server error",
+                message = ex.Message,
+                hint = "Check Railway logs for details"
+            });
         }
     }
 
