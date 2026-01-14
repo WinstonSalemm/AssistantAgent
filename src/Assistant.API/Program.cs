@@ -177,10 +177,30 @@ if (app.Environment.IsProduction())
         var context = scope.ServiceProvider.GetRequiredService<AssistantDbContext>();
         var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
         
+        // Пробуем получить connection string
         var connectionString = config.GetConnectionString("DefaultConnection") 
             ?? config["ConnectionStrings:DefaultConnection"]
             ?? config["ConnectionStrings__DefaultConnection"]
             ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+        
+        // Fallback: собираем из PG* переменных
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            var host = Environment.GetEnvironmentVariable("PGHOST");
+            var port = Environment.GetEnvironmentVariable("PGPORT") ?? "5432";
+            var db = Environment.GetEnvironmentVariable("PGDATABASE");
+            var user = Environment.GetEnvironmentVariable("PGUSER");
+            var pass = Environment.GetEnvironmentVariable("PGPASSWORD");
+            
+            if (!string.IsNullOrWhiteSpace(host) && 
+                !string.IsNullOrWhiteSpace(db) && 
+                !string.IsNullOrWhiteSpace(user) && 
+                !string.IsNullOrWhiteSpace(pass))
+            {
+                connectionString = $"Host={host};Port={port};Database={db};Username={user};Password={pass};SSL Mode=Prefer;Trust Server Certificate=true;";
+                Log.Information("Built connection string from PG* environment variables");
+            }
+        }
         
         Log.Information("Database connection string preview: {Preview}", 
             connectionString != null && connectionString.Length > 30 
@@ -196,6 +216,11 @@ if (app.Environment.IsProduction())
             Log.Information("Connection string contains sslmode: {HasSslMode}", 
                 connectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase));
         }
+        
+        // Логируем PG* переменные для диагностики
+        Log.Information("[DB] Using host: {Host}, db: {Database}", 
+            Environment.GetEnvironmentVariable("PGHOST"), 
+            Environment.GetEnvironmentVariable("PGDATABASE"));
         
         Log.Information("Checking database connection...");
         try

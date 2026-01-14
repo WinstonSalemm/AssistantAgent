@@ -26,15 +26,35 @@ public static class ServiceCollectionExtensions
                 ?? configuration["ConnectionStrings__DefaultConnection"]
                 ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
             
+            // Fallback: собираем connection string из PG* переменных (Railway стандарт)
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                var host = Environment.GetEnvironmentVariable("PGHOST");
+                var port = Environment.GetEnvironmentVariable("PGPORT") ?? "5432";
+                var db = Environment.GetEnvironmentVariable("PGDATABASE");
+                var user = Environment.GetEnvironmentVariable("PGUSER");
+                var pass = Environment.GetEnvironmentVariable("PGPASSWORD");
+                
+                if (!string.IsNullOrWhiteSpace(host) && 
+                    !string.IsNullOrWhiteSpace(db) && 
+                    !string.IsNullOrWhiteSpace(user) && 
+                    !string.IsNullOrWhiteSpace(pass))
+                {
+                    connectionString = $"Host={host};Port={port};Database={db};Username={user};Password={pass};SSL Mode=Prefer;Trust Server Certificate=true;";
+                }
+            }
+            
             // Проверяем что connection string не пустой
             if (string.IsNullOrWhiteSpace(connectionString))
             {
-                var errorMsg = "ConnectionStrings:DefaultConnection is not configured. " +
-                    "Please set ConnectionStrings__DefaultConnection environment variable in Railway. " +
+                var errorMsg = "ConnectionStrings:DefaultConnection is not configured and PG* variables are not available. " +
+                    "Please set ConnectionStrings__DefaultConnection environment variable in Railway or ensure PG* variables are set. " +
                     $"Tried: GetConnectionString('DefaultConnection'), " +
                     $"configuration['ConnectionStrings:DefaultConnection'], " +
                     $"configuration['ConnectionStrings__DefaultConnection'], " +
-                    $"Environment['ConnectionStrings__DefaultConnection']";
+                    $"Environment['ConnectionStrings__DefaultConnection'], " +
+                    $"PGHOST={Environment.GetEnvironmentVariable("PGHOST")}, " +
+                    $"PGDATABASE={Environment.GetEnvironmentVariable("PGDATABASE")}";
                 throw new InvalidOperationException(errorMsg);
             }
             
