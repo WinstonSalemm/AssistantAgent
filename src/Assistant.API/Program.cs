@@ -2,6 +2,7 @@ using Assistant.Infrastructure.Data;
 using Assistant.Infrastructure.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Serilog;
 
@@ -221,6 +222,25 @@ if (app.Environment.IsProduction())
         Log.Information("[DB] Using host: {Host}, db: {Database}", 
             Environment.GetEnvironmentVariable("PGHOST"), 
             Environment.GetEnvironmentVariable("PGDATABASE"));
+        
+        // Получаем реальный connection string из DbContext для диагностики
+        try
+        {
+            var dbConnection = context.Database.GetDbConnection();
+            var realConnectionString = dbConnection.ConnectionString;
+            var realPreview = realConnectionString.Length > 50 
+                ? realConnectionString.Substring(0, 50) + "..." 
+                : realConnectionString;
+            var hasSslInReal = realConnectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase) 
+                            || realConnectionString.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase);
+            
+            Log.Information("Real connection string from DbContext - Preview: {Preview}, Has SSL: {HasSsl}", 
+                realPreview, hasSslInReal);
+        }
+        catch
+        {
+            // Игнорируем ошибки получения connection string
+        }
         
         Log.Information("Checking database connection...");
         try

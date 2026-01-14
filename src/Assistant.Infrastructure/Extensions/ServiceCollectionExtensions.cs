@@ -71,39 +71,56 @@ public static class ServiceCollectionExtensions
             }
             
             // Railway может предоставить DATABASE_URL в формате postgresql://
-            // Npgsql понимает оба формата
-            // Для Railway добавляем SSL параметры если их нет
+            // ВСЕГДА добавляем SSL параметры для Railway PostgreSQL
             var finalConnectionString = connectionString;
             
-            // Если connection string в формате postgresql:// и нет SSL параметров, добавляем
-            if (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase) 
-                && !connectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase))
+            // Если connection string в формате postgresql://, добавляем SSL параметры
+            if (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
             {
-                // Добавляем sslmode=require для Railway
-                var separator = connectionString.Contains("?") ? "&" : "?";
-                finalConnectionString = $"{connectionString}{separator}sslmode=Require";
+                // Проверяем есть ли уже параметры
+                var hasParams = connectionString.Contains("?");
+                var separator = hasParams ? "&" : "?";
+                
+                // ВСЕГДА добавляем SSL параметры для Railway
+                if (!connectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase))
+                {
+                    finalConnectionString = $"{connectionString}{separator}sslmode=Require";
+                    separator = "&"; // Теперь точно есть параметры
+                }
+                
+                // Добавляем Trust Server Certificate если его нет
+                if (!finalConnectionString.Contains("Trust", StringComparison.OrdinalIgnoreCase) 
+                    && !finalConnectionString.Contains("trust", StringComparison.OrdinalIgnoreCase))
+                {
+                    finalConnectionString = $"{finalConnectionString}&Trust Server Certificate=true";
+                }
             }
-            
-            // SSL параметры добавлены автоматически если нужно
+            // Если connection string в формате Host=... (Npgsql формат), добавляем SSL параметры
+            else if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!connectionString.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase) 
+                    && !connectionString.Contains("SslMode", StringComparison.OrdinalIgnoreCase)
+                    && !connectionString.Contains("ssl mode", StringComparison.OrdinalIgnoreCase))
+                {
+                    finalConnectionString = $"{connectionString.TrimEnd(';')};SSL Mode=Require;Trust Server Certificate=true;";
+                }
+            }
             
             try
             {
                 options.UseNpgsql(finalConnectionString, npgsqlOptions =>
                 {
                     npgsqlOptions.UseVector();
-                    // Принудительно включаем SSL для Railway если нужно
-                    if (finalConnectionString.Contains("sslmode=Require", StringComparison.OrdinalIgnoreCase))
-                    {
-                        npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    }
+                    npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
                 });
             }
             catch (Exception ex)
             {
                 throw new InvalidOperationException(
                     $"Failed to configure PostgreSQL connection. " +
-                    $"Original connection string preview: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}... " +
-                    $"Final connection string preview: {finalConnectionString.Substring(0, Math.Min(50, finalConnectionString.Length))}... " +
+                    $"Original: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}... " +
+                    $"Final: {finalPreview} " +
+                    $"Has SSL: {hasSsl} " +
                     $"Error: {ex.Message}", ex);
             }
         });
