@@ -7,6 +7,7 @@ using Assistant.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using System;
 
 namespace Assistant.Infrastructure.Extensions;
@@ -17,131 +18,111 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Database
+        // =========================
+        // DATABASE (PostgreSQL)
+        // =========================
         services.AddDbContext<AssistantDbContext>(options =>
         {
-            // Пробуем несколько способов получить connection string
-            var connectionString = configuration.GetConnectionString("DefaultConnection") 
+            string? rawConnectionString =
+                configuration.GetConnectionString("DefaultConnection")
                 ?? configuration["ConnectionStrings:DefaultConnection"]
                 ?? configuration["ConnectionStrings__DefaultConnection"]
                 ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
-            
-            // Fallback: собираем connection string из PG* переменных (Railway стандарт)
-            // ВАЖНО: PG* переменные доступны только внутри Postgres сервиса!
-            // Для API сервиса нужно использовать ${{Postgres.DATABASE_URL}}
-            if (string.IsNullOrWhiteSpace(connectionString))
+
+            // Fallback: Railway PG* variables
+            if (string.IsNullOrWhiteSpace(rawConnectionString))
             {
                 var host = Environment.GetEnvironmentVariable("PGHOST");
                 var port = Environment.GetEnvironmentVariable("PGPORT") ?? "5432";
-                var db = Environment.GetEnvironmentVariable("PGDATABASE");
+                var db   = Environment.GetEnvironmentVariable("PGDATABASE");
                 var user = Environment.GetEnvironmentVariable("PGUSER");
                 var pass = Environment.GetEnvironmentVariable("PGPASSWORD");
-                
-                if (!string.IsNullOrWhiteSpace(host) && 
-                    !string.IsNullOrWhiteSpace(db) && 
-                    !string.IsNullOrWhiteSpace(user) && 
-                    !string.IsNullOrWhiteSpace(pass))
+
+                if (!string.IsNullOrWhiteSpace(host)
+                    && !string.IsNullOrWhiteSpace(db)
+                    && !string.IsNullOrWhiteSpace(user)
+                    && !string.IsNullOrWhiteSpace(pass))
                 {
-                    connectionString = $"Host={host};Port={port};Database={db};Username={user};Password={pass};SSL Mode=Prefer;Trust Server Certificate=true;";
+                    rawConnectionString =
+                        $"Host={host};Port={port};Database={db};Username={user};Password={pass};";
                 }
             }
-            
-            // Также пробуем DATABASE_URL напрямую (Railway может его предоставить)
-            if (string.IsNullOrWhiteSpace(connectionString))
+
+            if (string.IsNullOrWhiteSpace(rawConnectionString))
             {
-                var dbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
-                if (!string.IsNullOrWhiteSpace(dbUrl))
-                {
-                    connectionString = dbUrl;
-                }
-            }
-            
-            // Проверяем что connection string не пустой
-            if (string.IsNullOrWhiteSpace(connectionString))
-            {
-                var errorMsg = "ConnectionStrings:DefaultConnection is not configured and PG* variables are not available. " +
-                    "Please set ConnectionStrings__DefaultConnection environment variable in Railway or ensure PG* variables are set. " +
-                    $"Tried: GetConnectionString('DefaultConnection'), " +
-                    $"configuration['ConnectionStrings:DefaultConnection'], " +
-                    $"configuration['ConnectionStrings__DefaultConnection'], " +
-                    $"Environment['ConnectionStrings__DefaultConnection'], " +
-                    $"PGHOST={Environment.GetEnvironmentVariable("PGHOST")}, " +
-                    $"PGDATABASE={Environment.GetEnvironmentVariable("PGDATABASE")}";
-                throw new InvalidOperationException(errorMsg);
-            }
-            
-            // Railway может предоставить DATABASE_URL в формате postgresql://
-            // ВСЕГДА добавляем SSL параметры для Railway PostgreSQL
-            var finalConnectionString = connectionString;
-            
-            // Если connection string в формате postgresql://, добавляем SSL параметры
-            if (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
-            {
-                // Проверяем есть ли уже параметры
-                var hasParams = connectionString.Contains("?");
-                var separator = hasParams ? "&" : "?";
-                
-                // ВСЕГДА добавляем SSL параметры для Railway
-                if (!connectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase))
-                {
-                    finalConnectionString = $"{connectionString}{separator}sslmode=Require";
-                    separator = "&"; // Теперь точно есть параметры
-                }
-                
-                // Добавляем Trust Server Certificate если его нет
-                if (!finalConnectionString.Contains("Trust", StringComparison.OrdinalIgnoreCase) 
-                    && !finalConnectionString.Contains("trust", StringComparison.OrdinalIgnoreCase))
-                {
-                    finalConnectionString = $"{finalConnectionString}&Trust Server Certificate=true";
-                }
-            }
-            // Если connection string в формате Host=... (Npgsql формат), добавляем SSL параметры
-            else if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!connectionString.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase) 
-                    && !connectionString.Contains("SslMode", StringComparison.OrdinalIgnoreCase)
-                    && !connectionString.Contains("ssl mode", StringComparison.OrdinalIgnoreCase))
-                {
-                    finalConnectionString = $"{connectionString.TrimEnd(';')};SSL Mode=Require;Trust Server Certificate=true;";
-                }
-            }
-            
-            try
-            {
-                options.UseNpgsql(finalConnectionString, npgsqlOptions =>
-                {
-                    npgsqlOptions.UseVector();
-                    npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                });
-            }
-            catch (Exception ex)
-            {
-                var finalPreview = finalConnectionString.Length > 50 
-                    ? finalConnectionString.Substring(0, 50) + "..." 
-                    : finalConnectionString;
-                var hasSsl = finalConnectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase) 
-                          || finalConnectionString.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase);
-                
                 throw new InvalidOperationException(
-                    $"Failed to configure PostgreSQL connection. " +
-                    $"Original: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}... " +
-                    $"Final: {finalPreview} " +
-                    $"Has SSL: {hasSsl} " +
-                    $"Error: {ex.Message}", ex);
+                    "PostgreSQL connection string is not configured. " +
+                    "Set ConnectionStrings__DefaultConnection or Railway PG* variables."
+                );
             }
+
+            // =========================
+            // NORMALIZE CONNECTION STRING
+            // =========================
+            var builder = rawConnectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)
+                ? new NpgsqlConnectionStringBuilder(rawConnectionString)
+                : new NpgsqlConnectionStringBuilder(rawConnectionString);
+
+            var hostLower = builder.Host?.ToLowerInvariant() ?? "";
+
+            bool isInternalRailway =
+                hostLower.Contains("railway.internal");
+
+            bool isProxyRailway =
+                hostLower.Contains("proxy.rlwy.net")
+                || hostLower.Contains("rlwy.net");
+
+            // SSL rules (ВАЖНО)
+            if (isInternalRailway)
+            {
+                // Internal network — SSL НЕ НУЖЕН
+                builder.SslMode = SslMode.Disable;
+            }
+            else if (isProxyRailway)
+            {
+                // Public proxy — SSL обязателен
+                builder.SslMode = SslMode.Require;
+                builder.TrustServerCertificate = true;
+            }
+            else
+            {
+                // Универсальный безопасный вариант
+                builder.SslMode = SslMode.Prefer;
+                builder.TrustServerCertificate = true;
+            }
+
+            builder.Timeout = 15;
+            builder.CommandTimeout = 30;
+            builder.Pooling = true;
+
+            var finalConnectionString = builder.ConnectionString;
+
+            options.UseNpgsql(finalConnectionString, npgsql =>
+            {
+                npgsql.UseVector();
+                npgsql.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(5),
+                    errorCodesToAdd: null
+                );
+            });
         });
 
-        // Repositories
+        // =========================
+        // REPOSITORIES
+        // =========================
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<IReminderRepository, ReminderRepository>();
         services.AddScoped<IMemoryRepository, MemoryRepository>();
 
-        // AI Service
+        // =========================
+        // AI SERVICE (OpenAI)
+        // =========================
         var openAIKey = configuration["OpenAI:ApiKey"];
-        if (!string.IsNullOrEmpty(openAIKey))
+        if (!string.IsNullOrWhiteSpace(openAIKey))
         {
-            services.AddSingleton<IAIService>(sp =>
+            services.AddSingleton<IAIService>(_ =>
             {
                 var options = new OpenAIServiceOptions
                 {
@@ -151,19 +132,26 @@ public static class ServiceCollectionExtensions
                     TTSModel = configuration["OpenAI:TTSModel"] ?? "tts-1",
                     EmbeddingModel = configuration["OpenAI:EmbeddingModel"] ?? "text-embedding-ada-002"
                 };
+
                 return new OpenAIService(openAIKey, options);
             });
         }
 
-        // Cache Service (Redis)
+        // =========================
+        // CACHE (Redis)
+        // =========================
         var redisConnection = configuration.GetConnectionString("Redis");
-        services.AddSingleton(sp => new CacheService(redisConnection));
+        if (!string.IsNullOrWhiteSpace(redisConnection))
+        {
+            services.AddSingleton(_ => new CacheService(redisConnection));
+        }
 
-        // AI Agents
+        // =========================
+        // AI AGENTS
+        // =========================
         services.AddScoped<CommandRouterAgent>();
         services.AddScoped<IAgent, TaskAgent>();
         services.AddScoped<IAgent, QueryAgent>();
-        
         services.AddScoped<IAgentRouter, AgentRouter>();
 
         return services;
