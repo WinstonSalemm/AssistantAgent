@@ -131,7 +131,7 @@ app.MapGet("/health/db", async (AssistantDbContext context, IConfiguration confi
                 // Добавляем более детальную информацию для диагностики
                 if (dbEx is Npgsql.NpgsqlException npgsqlEx)
                 {
-                    dbError += $" | Npgsql Code: {npgsqlEx.SqlState} | Detail: {npgsqlEx.Detail}";
+                    dbError += $" | Npgsql Code: {npgsqlEx.SqlState} | Message: {npgsqlEx.Message}";
                 }
             }
         }
@@ -222,8 +222,8 @@ if (app.Environment.IsProduction())
             
             if (dbEx is NpgsqlException npgsqlEx)
             {
-                Log.Error("Npgsql Error - Code: {SqlState}, Detail: {Detail}, Hint: {Hint}", 
-                    npgsqlEx.SqlState, npgsqlEx.Detail, npgsqlEx.Hint);
+                Log.Error("Npgsql Error - Code: {SqlState}, Message: {Message}", 
+                    npgsqlEx.SqlState, npgsqlEx.Message);
             }
             
             Log.Error("Stack trace: {StackTrace}", dbEx.StackTrace);
