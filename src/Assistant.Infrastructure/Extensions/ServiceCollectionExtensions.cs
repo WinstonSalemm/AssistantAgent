@@ -52,18 +52,7 @@ public static class ServiceCollectionExtensions
                 finalConnectionString = $"{connectionString}{separator}sslmode=Require";
             }
             
-            // Логируем для диагностики (если есть ILogger)
-            try
-            {
-                var loggerFactory = services.BuildServiceProvider().GetService<Microsoft.Extensions.Logging.ILoggerFactory>();
-                var logger = loggerFactory?.CreateLogger("DatabaseConfig");
-                logger?.LogInformation("Configuring PostgreSQL connection. Has SSL: {HasSsl}", 
-                    finalConnectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase));
-            }
-            catch
-            {
-                // Игнорируем ошибки логирования при конфигурации
-            }
+            // SSL параметры добавлены автоматически если нужно
             
             try
             {
