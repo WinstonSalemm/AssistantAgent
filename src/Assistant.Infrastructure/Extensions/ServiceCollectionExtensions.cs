@@ -27,6 +27,8 @@ public static class ServiceCollectionExtensions
                 ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
             
             // Fallback: собираем connection string из PG* переменных (Railway стандарт)
+            // ВАЖНО: PG* переменные доступны только внутри Postgres сервиса!
+            // Для API сервиса нужно использовать ${{Postgres.DATABASE_URL}}
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 var host = Environment.GetEnvironmentVariable("PGHOST");
@@ -41,6 +43,16 @@ public static class ServiceCollectionExtensions
                     !string.IsNullOrWhiteSpace(pass))
                 {
                     connectionString = $"Host={host};Port={port};Database={db};Username={user};Password={pass};SSL Mode=Prefer;Trust Server Certificate=true;";
+                }
+            }
+            
+            // Также пробуем DATABASE_URL напрямую (Railway может его предоставить)
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                var dbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+                if (!string.IsNullOrWhiteSpace(dbUrl))
+                {
+                    connectionString = dbUrl;
                 }
             }
             
