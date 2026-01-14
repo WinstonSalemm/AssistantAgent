@@ -7,6 +7,7 @@ using Assistant.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System;
 
 namespace Assistant.Infrastructure.Extensions;
 
@@ -19,7 +20,26 @@ public static class ServiceCollectionExtensions
         // Database
         services.AddDbContext<AssistantDbContext>(options =>
         {
-            var connectionString = configuration.GetConnectionString("DefaultConnection");
+            // Пробуем несколько способов получить connection string
+            var connectionString = configuration.GetConnectionString("DefaultConnection") 
+                ?? configuration["ConnectionStrings:DefaultConnection"]
+                ?? configuration["ConnectionStrings__DefaultConnection"]
+                ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+            
+            // Проверяем что connection string не пустой
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                var errorMsg = "ConnectionStrings:DefaultConnection is not configured. " +
+                    "Please set ConnectionStrings__DefaultConnection environment variable in Railway. " +
+                    $"Tried: GetConnectionString('DefaultConnection'), " +
+                    $"configuration['ConnectionStrings:DefaultConnection'], " +
+                    $"configuration['ConnectionStrings__DefaultConnection'], " +
+                    $"Environment['ConnectionStrings__DefaultConnection']";
+                throw new InvalidOperationException(errorMsg);
+            }
+            
+            // Railway может предоставить DATABASE_URL в формате postgresql://
+            // Npgsql понимает оба формата
             options.UseNpgsql(connectionString, npgsqlOptions =>
             {
                 npgsqlOptions.UseVector();

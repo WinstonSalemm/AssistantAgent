@@ -1,6 +1,7 @@
 using Assistant.Infrastructure.Data;
 using Assistant.Infrastructure.Extensions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -69,42 +70,82 @@ app.MapGet("/health", () => Results.Ok(new {
 }));
 
 // Database status endpoint (для отладки)
-app.MapGet("/health/db", async (AssistantDbContext context) =>
+app.MapGet("/health/db", async (AssistantDbContext context, IConfiguration configuration) =>
 {
     try
     {
-        var canConnect = await context.Database.CanConnectAsync();
-        var pendingMigrations = (await context.Database.GetPendingMigrationsAsync()).ToList();
-        var appliedMigrations = (await context.Database.GetAppliedMigrationsAsync()).ToList();
+        // Пробуем несколько способов получить connection string
+        var cs1 = configuration.GetConnectionString("DefaultConnection");
+        var cs2 = configuration["ConnectionStrings:DefaultConnection"];
+        var cs3 = configuration["ConnectionStrings__DefaultConnection"];
+        var cs4 = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
         
+        var connectionString = cs1 ?? cs2 ?? cs3 ?? cs4;
+        
+        var connectionStringStatus = string.IsNullOrWhiteSpace(connectionString) 
+            ? "❌ NOT SET" 
+            : $"✅ SET (length: {connectionString.Length}, starts with: {connectionString.Substring(0, Math.Min(20, connectionString.Length))}...)";
+        
+        var canConnect = false;
+        var pendingMigrations = new List<string>();
+        var appliedMigrations = new List<string>();
         bool tablesExist = false;
-        if (canConnect)
+        string? dbError = null;
+        
+        if (!string.IsNullOrWhiteSpace(connectionString))
         {
             try
             {
-                // Проверяем что таблица Tasks существует
-                var result = await context.Database.ExecuteSqlRawAsync(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'Tasks'");
-                tablesExist = result > 0;
+                canConnect = await context.Database.CanConnectAsync();
+                
+                if (canConnect)
+                {
+                    pendingMigrations = (await context.Database.GetPendingMigrationsAsync()).ToList();
+                    appliedMigrations = (await context.Database.GetAppliedMigrationsAsync()).ToList();
+                    
+                    // Проверяем что таблица Tasks существует
+                    try
+                    {
+                        var result = await context.Database.ExecuteSqlRawAsync(
+                            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'Tasks'");
+                        tablesExist = result > 0;
+                    }
+                    catch
+                    {
+                        tablesExist = false;
+                    }
+                }
             }
-            catch
+            catch (Exception dbEx)
             {
-                tablesExist = false;
+                dbError = $"{dbEx.Message} | Inner: {dbEx.InnerException?.Message}";
             }
         }
         
         return Results.Ok(new
         {
+            connectionStringStatus,
+            connectionStringSources = new
+            {
+                GetConnectionString = !string.IsNullOrWhiteSpace(cs1),
+                ConfigBrackets = !string.IsNullOrWhiteSpace(cs2),
+                ConfigUnderscore = !string.IsNullOrWhiteSpace(cs3),
+                EnvironmentVar = !string.IsNullOrWhiteSpace(cs4)
+            },
             canConnect,
             pendingMigrations,
             appliedMigrations,
             tablesExist,
-            connectionString = canConnect ? "✅ Connected" : "❌ Not connected"
+            error = dbError,
+            hint = string.IsNullOrWhiteSpace(connectionString) 
+                ? "⚠️ Add ConnectionStrings__DefaultConnection=${{Postgres.DATABASE_URL}} in Railway Variables"
+                : null
         });
     }
     catch (Exception ex)
     {
-        return Results.Problem(detail: $"Error: {ex.Message}\nInner: {ex.InnerException?.Message}");
+        return Results.Problem(detail: $"Error: {ex.Message}\nInner: {ex.InnerException?.Message}\n\n" +
+            "💡 Solution: Add ConnectionStrings__DefaultConnection=${{Postgres.DATABASE_URL}} in Railway Variables");
     }
 });
 
