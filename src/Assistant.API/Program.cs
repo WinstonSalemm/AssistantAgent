@@ -123,7 +123,13 @@ app.MapGet("/health/db", async (AssistantDbContext context, IConfiguration confi
                 {
                     dbError += $" | Inner: {dbEx.InnerException.GetType().Name}: {dbEx.InnerException.Message}";
                 }
-                dbError += $" | StackTrace: {dbEx.StackTrace?.Substring(0, Math.Min(200, dbEx.StackTrace.Length ?? 0))}";
+                if (dbEx.StackTrace != null)
+                {
+                    var stackTracePreview = dbEx.StackTrace.Length > 200 
+                        ? dbEx.StackTrace.Substring(0, 200) + "..." 
+                        : dbEx.StackTrace;
+                    dbError += $" | StackTrace: {stackTracePreview}";
+                }
             }
         }
         
