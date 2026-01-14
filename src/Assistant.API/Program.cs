@@ -187,6 +187,16 @@ if (app.Environment.IsProduction())
                 ? connectionString.Substring(0, 30) + "..." 
                 : connectionString ?? "NULL");
         
+        // Логируем информацию о connection string для диагностики
+        if (connectionString != null)
+        {
+            Log.Information("Connection string length: {Length}, starts with: {Start}", 
+                connectionString.Length, 
+                connectionString.Substring(0, Math.Min(20, connectionString.Length)));
+            Log.Information("Connection string contains sslmode: {HasSslMode}", 
+                connectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase));
+        }
+        
         Log.Information("Checking database connection...");
         try
         {

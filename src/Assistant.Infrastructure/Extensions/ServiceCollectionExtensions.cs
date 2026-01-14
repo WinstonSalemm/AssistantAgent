@@ -40,10 +40,33 @@ public static class ServiceCollectionExtensions
             
             // Railway может предоставить DATABASE_URL в формате postgresql://
             // Npgsql понимает оба формата
-            options.UseNpgsql(connectionString, npgsqlOptions =>
+            // Для Railway добавляем SSL параметры если их нет
+            var finalConnectionString = connectionString;
+            
+            // Если connection string в формате postgresql:// и нет SSL параметров, добавляем
+            if (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase) 
+                && !connectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase))
             {
-                npgsqlOptions.UseVector();
-            });
+                // Добавляем sslmode=require для Railway
+                var separator = connectionString.Contains("?") ? "&" : "?";
+                finalConnectionString = $"{connectionString}{separator}sslmode=Require";
+            }
+            
+            try
+            {
+                options.UseNpgsql(finalConnectionString, npgsqlOptions =>
+                {
+                    npgsqlOptions.UseVector();
+                });
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to configure PostgreSQL connection. " +
+                    $"Original connection string preview: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}... " +
+                    $"Final connection string preview: {finalConnectionString.Substring(0, Math.Min(50, finalConnectionString.Length))}... " +
+                    $"Error: {ex.Message}", ex);
+            }
         });
 
         // Repositories
