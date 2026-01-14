@@ -68,7 +68,7 @@
 #### Переменная 2: OpenAI API Key
 
 **Name:** `OpenAI__ApiKey`  
-**Value:** `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`
+**Value:** `sk-your-openai-api-key-here` (вставь свой реальный ключ из OpenAI dashboard)
 
 **Как заполнить:**
 1. Нажми **"+ New Variable"** снова

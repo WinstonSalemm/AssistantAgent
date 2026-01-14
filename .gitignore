@@ -65,6 +65,7 @@ secrets.json
 *.env
 .env.local
 .env.*.local
+OPENAI_API_KEY.md
 
 # Database
 *.db
