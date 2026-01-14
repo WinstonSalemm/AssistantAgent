@@ -40,7 +40,8 @@ public static class ServiceCollectionExtensions
             {
                 var options = new OpenAIServiceOptions
                 {
-                    ChatModel = configuration["OpenAI:Model"] ?? "gpt-4o-mini",
+                    ChatModel = configuration["OpenAI:Model"] ?? "gpt-5-mini",
+                    DeepThinkingModel = configuration["OpenAI:DeepThinkingModel"] ?? "gpt-5.2",
                     WhisperModel = configuration["OpenAI:WhisperModel"] ?? "whisper-1",
                     TTSModel = configuration["OpenAI:TTSModel"] ?? "tts-1",
                     EmbeddingModel = configuration["OpenAI:EmbeddingModel"] ?? "text-embedding-ada-002"

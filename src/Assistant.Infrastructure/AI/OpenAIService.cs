@@ -10,6 +10,7 @@ public class OpenAIService : IAIService
 {
     private readonly OpenAIClient _client;
     private readonly string _chatModel;
+    private readonly string _deepThinkingModel;
     private readonly string _whisperModel;
     private readonly string _ttsModel;
     private readonly string _embeddingModel;
@@ -20,14 +21,23 @@ public class OpenAIService : IAIService
         
         var opts = options ?? new OpenAIServiceOptions();
         _chatModel = opts.ChatModel;
+        _deepThinkingModel = opts.DeepThinkingModel;
         _whisperModel = opts.WhisperModel;
         _ttsModel = opts.TTSModel;
         _embeddingModel = opts.EmbeddingModel;
     }
 
+    public string ChatModel => _chatModel;
+    public string DeepThinkingModel => _deepThinkingModel;
+
     public async Task<string> GenerateResponseAsync(string prompt, string? systemPrompt = null)
     {
-        var chatClient = _client.GetChatClient(_chatModel);
+        return await GenerateResponseAsync(prompt, _chatModel, systemPrompt);
+    }
+
+    public async Task<string> GenerateResponseAsync(string prompt, string model, string? systemPrompt = null)
+    {
+        var chatClient = _client.GetChatClient(model);
         
         var messages = new List<ChatMessage>();
         
@@ -82,7 +92,8 @@ public class OpenAIService : IAIService
 
 public class OpenAIServiceOptions
 {
-    public string ChatModel { get; set; } = "gpt-4o-mini";
+    public string ChatModel { get; set; } = "gpt-5-mini"; // Базовая модель по умолчанию
+    public string DeepThinkingModel { get; set; } = "gpt-5.2"; // Модель для "думай глубже"
     public string WhisperModel { get; set; } = "whisper-1";
     public string TTSModel { get; set; } = "tts-1";
     public string EmbeddingModel { get; set; } = "text-embedding-ada-002";

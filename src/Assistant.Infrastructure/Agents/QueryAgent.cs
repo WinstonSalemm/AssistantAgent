@@ -32,7 +32,17 @@ public class QueryAgent : IAgent
 
         try
         {
-            var response = await _aiService.GenerateResponseAsync(input, systemPrompt);
+            // Используем модель из контекста если указана, иначе дефолтную
+            string? model = null;
+            if (context != null && context.TryGetValue("model", out var modelObj))
+            {
+                model = modelObj?.ToString();
+            }
+
+            var response = model != null 
+                ? await _aiService.GenerateResponseAsync(input, model, systemPrompt)
+                : await _aiService.GenerateResponseAsync(input, systemPrompt);
+            
             return response;
         }
         catch (Exception ex)

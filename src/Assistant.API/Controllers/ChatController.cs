@@ -14,17 +14,20 @@ public class ChatController : ControllerBase
     private readonly IAIService _aiService;
     private readonly IRepository<Message> _messageRepository;
     private readonly ILogger<ChatController> _logger;
+    private readonly IConfiguration _configuration;
 
     public ChatController(
         IAgentRouter agentRouter,
         IAIService aiService,
         IRepository<Message> messageRepository,
-        ILogger<ChatController> logger)
+        ILogger<ChatController> logger,
+        IConfiguration configuration)
     {
         _agentRouter = agentRouter;
         _aiService = aiService;
         _messageRepository = messageRepository;
         _logger = logger;
+        _configuration = configuration;
     }
 
     [HttpPost]
@@ -44,8 +47,21 @@ public class ChatController : ControllerBase
                 CreatedAt = DateTime.UtcNow
             });
 
-            // Обрабатываем запрос через агентов
-            var response = await _agentRouter.ProcessRequestAsync(request.Message);
+            // Определяем модель: gpt-5.2 если UseDeepThinking, иначе gpt-5-mini
+            string? model = null;
+            if (request.UseDeepThinking)
+            {
+                model = _configuration["OpenAI:DeepThinkingModel"] ?? "gpt-5.2";
+            }
+
+            // Обрабатываем запрос через агентов с указанием модели
+            var context = new Dictionary<string, object>();
+            if (model != null)
+            {
+                context["model"] = model;
+            }
+            
+            var response = await _agentRouter.ProcessRequestAsync(request.Message, context);
 
             // Сохраняем ответ ассистента
             await _messageRepository.AddAsync(new Message
