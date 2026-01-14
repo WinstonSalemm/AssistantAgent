@@ -2,17 +2,18 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy solution and project files
-COPY Assistant.sln .
+# Copy project files (only what we need for API)
 COPY src/Assistant.API/Assistant.API.csproj src/Assistant.API/
 COPY src/Assistant.Core/Assistant.Core.csproj src/Assistant.Core/
 COPY src/Assistant.Infrastructure/Assistant.Infrastructure.csproj src/Assistant.Infrastructure/
 COPY src/Assistant.Shared/Assistant.Shared.csproj src/Assistant.Shared/
 
-# Restore dependencies
-RUN dotnet restore Assistant.sln
+# Restore dependencies (restore through API project which has all dependencies)
+WORKDIR /src/src/Assistant.API
+RUN dotnet restore "Assistant.API.csproj"
 
 # Copy everything else
+WORKDIR /src
 COPY . .
 
 # Build
