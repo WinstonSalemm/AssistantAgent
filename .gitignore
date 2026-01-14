@@ -1,0 +1,99 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+*.vspscc
+*.vssscc
+*.sln.docstates
+*.userprefs
+*.pidb
+*.swp
+*DS_Store
+*.nib
+*.bak
+*.orig
+*.log
+
+# Visual Studio
+.vs/
+.vscode/
+*.sln.ide/
+
+# Rider
+.idea/
+*.sln.iml
+
+# User-specific files
+*.rsuser
+*.userosscache
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# MAUI specific
+**/iOS/**/bin/
+**/iOS/**/obj/
+**/Android/**/bin/
+**/Android/**/obj/
+**/MacCatalyst/**/bin/
+**/MacCatalyst/**/obj/
+**/Windows/**/bin/
+**/Windows/**/obj/
+
+# Secrets & Config
+appsettings.Development.json
+appsettings.Production.json
+secrets.json
+*.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Node (if using any)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Redis
+dump.rdb
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+~$*
