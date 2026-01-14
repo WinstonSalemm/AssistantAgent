@@ -1,6 +1,7 @@
 # 🔧 Исправление ошибки подключения к БД
 
 ## ❌ Проблема:
+
 ```
 Format of the initialization string does not conform to specification starting at index 0
 ```
@@ -23,12 +24,14 @@ Format of the initialization string does not conform to specification starting a
 ### Шаг 2: Проверь переменные
 
 Убедись что есть переменная:
+
 ```
 Name: ConnectionStrings__DefaultConnection
 Value: ${{Postgres.DATABASE_URL}}
 ```
 
 **ВАЖНО:**
+
 - Имя переменной должно быть **точно** `ConnectionStrings__DefaultConnection` (с двойным подчеркиванием `__`)
 - Значение должно быть `${{Postgres.DATABASE_URL}}` (Railway автоматически подставит connection string)
 - **НЕ используй прямой connection string** типа `postgresql://...` - используй только `${{Postgres.DATABASE_URL}}`
@@ -50,23 +53,27 @@ Value: ${{Postgres.DATABASE_URL}}
 ### Шаг 4: Проверь что PostgreSQL сервис запущен
 
 В Railway Dashboard убедись что:
+
 - ✅ **Postgres** сервис имеет статус **"Online"** (зеленый кружок)
 - ✅ Если статус не "Online" - нажми на Postgres сервис и проверь логи
 
 ### Шаг 5: Перезапусти API сервис
 
 После добавления переменной:
+
 1. Railway автоматически перезапустит API
 2. Или вручную: Settings → Restart
 
 ### Шаг 6: Проверь что всё работает
 
 Открой в браузере:
+
 ```
 https://perceptive-perception-production.up.railway.app/health/db
 ```
 
 Должно показать:
+
 ```json
 {
   "connectionStringStatus": "✅ SET (length: ...)",
@@ -86,6 +93,7 @@ https://perceptive-perception-production.up.railway.app/health/db
 Railway Dashboard → API сервис → Variables
 
 Должна быть переменная:
+
 ```
 ConnectionStrings__DefaultConnection = ${{Postgres.DATABASE_URL}}
 ```
@@ -95,6 +103,7 @@ ConnectionStrings__DefaultConnection = ${{Postgres.DATABASE_URL}}
 Railway Dashboard → API сервис → Deploy Logs
 
 Ищи строки:
+
 - ✅ `✅ Database migrations applied successfully` - всё ОК
 - ❌ `❌ Cannot connect to database!` - проблема с подключением
 - ❌ `ConnectionStrings:DefaultConnection is not configured` - переменная не добавлена
@@ -129,18 +138,21 @@ ASPNETCORE_URLS=http://0.0.0.0:8080
 ## 💡 Частые ошибки:
 
 ### ❌ Ошибка 1: Переменная называется неправильно
+
 ```
 ConnectionStrings_DefaultConnection  ← НЕПРАВИЛЬНО (одно подчеркивание)
 ConnectionStrings__DefaultConnection ← ПРАВИЛЬНО (двойное подчеркивание)
 ```
 
 ### ❌ Ошибка 2: Значение неправильное
+
 ```
 ${{Postgres.DATABASE_URL}}  ← ПРАВИЛЬНО (Railway синтаксис)
 postgresql://...            ← НЕПРАВИЛЬНО (не используй напрямую)
 ```
 
 ### ❌ Ошибка 3: PostgreSQL сервис не запущен
+
 - Проверь что Postgres сервис имеет статус "Online"
 - Если нет - перезапусти его
 

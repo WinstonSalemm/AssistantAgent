@@ -118,13 +118,21 @@ app.MapGet("/health/db", async (AssistantDbContext context, IConfiguration confi
             }
             catch (Exception dbEx)
             {
-                dbError = $"{dbEx.Message} | Inner: {dbEx.InnerException?.Message}";
+                dbError = $"{dbEx.GetType().Name}: {dbEx.Message}";
+                if (dbEx.InnerException != null)
+                {
+                    dbError += $" | Inner: {dbEx.InnerException.GetType().Name}: {dbEx.InnerException.Message}";
+                }
+                dbError += $" | StackTrace: {dbEx.StackTrace?.Substring(0, Math.Min(200, dbEx.StackTrace.Length ?? 0))}";
             }
         }
         
         return Results.Ok(new
         {
             connectionStringStatus,
+            connectionStringPreview = connectionString != null 
+                ? connectionString.Substring(0, Math.Min(50, connectionString.Length)) + "..." 
+                : null,
             connectionStringSources = new
             {
                 GetConnectionString = !string.IsNullOrWhiteSpace(cs1),
@@ -139,7 +147,9 @@ app.MapGet("/health/db", async (AssistantDbContext context, IConfiguration confi
             error = dbError,
             hint = string.IsNullOrWhiteSpace(connectionString) 
                 ? "⚠️ Add ConnectionStrings__DefaultConnection=${{Postgres.DATABASE_URL}} in Railway Variables"
-                : null
+                : (!canConnect && string.IsNullOrWhiteSpace(dbError)
+                    ? "⚠️ Check Railway Deploy Logs for database connection errors"
+                    : null)
         });
     }
     catch (Exception ex)
@@ -156,36 +166,56 @@ if (app.Environment.IsProduction())
     {
         using var scope = app.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AssistantDbContext>();
+        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        
+        var connectionString = config.GetConnectionString("DefaultConnection") 
+            ?? config["ConnectionStrings:DefaultConnection"]
+            ?? config["ConnectionStrings__DefaultConnection"]
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+        
+        Log.Information("Database connection string preview: {Preview}", 
+            connectionString != null && connectionString.Length > 30 
+                ? connectionString.Substring(0, 30) + "..." 
+                : connectionString ?? "NULL");
         
         Log.Information("Checking database connection...");
-        var canConnect = await context.Database.CanConnectAsync();
-        Log.Information("Database connection: {CanConnect}", canConnect);
-        
-        if (canConnect)
+        try
         {
-            Log.Information("Applying database migrations...");
-            await context.Database.MigrateAsync();
-            Log.Information("✅ Database migrations applied successfully");
+            var canConnect = await context.Database.CanConnectAsync();
+            Log.Information("Database connection: {CanConnect}", canConnect);
             
-            // Проверяем что таблицы созданы
-            var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
-            if (pendingMigrations.Any())
+            if (canConnect)
             {
-                Log.Warning("⚠️ Pending migrations: {Migrations}", string.Join(", ", pendingMigrations));
+                Log.Information("Applying database migrations...");
+                await context.Database.MigrateAsync();
+                Log.Information("✅ Database migrations applied successfully");
+                
+                // Проверяем что таблицы созданы
+                var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+                if (pendingMigrations.Any())
+                {
+                    Log.Warning("⚠️ Pending migrations: {Migrations}", string.Join(", ", pendingMigrations));
+                }
+                else
+                {
+                    Log.Information("✅ All migrations are up to date");
+                }
             }
             else
             {
-                Log.Information("✅ All migrations are up to date");
+                Log.Error("❌ Cannot connect to database! Check ConnectionStrings__DefaultConnection");
             }
         }
-        else
+        catch (Exception dbEx)
         {
-            Log.Error("❌ Cannot connect to database! Check ConnectionStrings__DefaultConnection");
+            Log.Error(dbEx, "❌ Database connection failed: {Message}", dbEx.Message);
+            Log.Error("Inner exception: {InnerException}", dbEx.InnerException?.Message);
+            Log.Error("Stack trace: {StackTrace}", dbEx.StackTrace);
         }
     }
     catch (Exception ex)
     {
-        Log.Error(ex, "❌ Error applying database migrations: {Message}", ex.Message);
+        Log.Error(ex, "❌ Error during database initialization: {Message}", ex.Message);
         Log.Error("Inner exception: {InnerException}", ex.InnerException?.Message);
         // Не падаем, если миграции не применились - возможно БД еще не создана
     }
