@@ -2,6 +2,7 @@ using Assistant.Infrastructure.Data;
 using Assistant.Infrastructure.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -122,13 +123,15 @@ app.MapGet("/health/db", async (AssistantDbContext context, IConfiguration confi
                 if (dbEx.InnerException != null)
                 {
                     dbError += $" | Inner: {dbEx.InnerException.GetType().Name}: {dbEx.InnerException.Message}";
+                    if (dbEx.InnerException.InnerException != null)
+                    {
+                        dbError += $" | Inner2: {dbEx.InnerException.InnerException.Message}";
+                    }
                 }
-                if (dbEx.StackTrace != null)
+                // Добавляем более детальную информацию для диагностики
+                if (dbEx is Npgsql.NpgsqlException npgsqlEx)
                 {
-                    var stackTracePreview = dbEx.StackTrace.Length > 200 
-                        ? dbEx.StackTrace.Substring(0, 200) + "..." 
-                        : dbEx.StackTrace;
-                    dbError += $" | StackTrace: {stackTracePreview}";
+                    dbError += $" | Npgsql Code: {npgsqlEx.SqlState} | Detail: {npgsqlEx.Detail}";
                 }
             }
         }
@@ -216,6 +219,13 @@ if (app.Environment.IsProduction())
         {
             Log.Error(dbEx, "❌ Database connection failed: {Message}", dbEx.Message);
             Log.Error("Inner exception: {InnerException}", dbEx.InnerException?.Message);
+            
+            if (dbEx is NpgsqlException npgsqlEx)
+            {
+                Log.Error("Npgsql Error - Code: {SqlState}, Detail: {Detail}, Hint: {Hint}", 
+                    npgsqlEx.SqlState, npgsqlEx.Detail, npgsqlEx.Hint);
+            }
+            
             Log.Error("Stack trace: {StackTrace}", dbEx.StackTrace);
         }
     }
